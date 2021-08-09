@@ -1,0 +1,32 @@
+FROM golang:1.16.5 as builder
+
+WORKDIR /go/src
+
+COPY go.mod  ./
+RUN go mod download
+
+COPY ./main.go  ./
+
+ARG CGO_ENABLED=0
+ARG GOOS=linux
+ARG GOARCH=amd64
+RUN go build \
+    -o /go/bin/main \
+    -ldflags '-s -w' && \
+    go get -u github.com/go-delve/delve/cmd/dlv && \
+    go build -o /go/bin/dlv github.com/go-delve/delve/cmd/dlv
+
+
+
+FROM alpine as runner
+
+WORKDIR /app
+
+COPY --from=builder /go/bin/main /app/main
+
+RUN set -x && \
+    addgroup go && \
+    adduser -D -G go go && \
+    chown -R go:go /app/main
+
+ENTRYPOINT ["/app/main"]
